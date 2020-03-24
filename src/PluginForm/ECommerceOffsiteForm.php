@@ -4,7 +4,6 @@ namespace Drupal\commerce_ingenico\PluginForm;
 
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\commerce_payment\PluginForm\PaymentOffsiteForm as BasePaymentOffsiteForm;
-use Drupal\commerce_payment\PluginForm\PaymentOffsiteForm;
 use Ogone\DirectLink\PaymentOperation;
 use Ogone\Ecommerce\EcommercePaymentRequest;
 use Ogone\HashAlgorithm;
@@ -21,8 +20,6 @@ class ECommerceOffsiteForm extends BasePaymentOffsiteForm {
 
     /** @var \Drupal\commerce_payment\Entity\PaymentInterface $payment */
     $payment = $this->entity;
-    // The test property is not yet added at this point.
-    $payment->setTest($payment->getPaymentGateway()->getPlugin()->getMode() == 'test');
     // Save the payment entity so that we can get its ID and use it for
     // building the 'ORDERID' property for Ingenico. Then, when user returns
     // from the off-site redirect, we will update the same payment.
@@ -89,6 +86,14 @@ class ECommerceOffsiteForm extends BasePaymentOffsiteForm {
     $ecommercePaymentRequest->setEcom_Shipto_Postal_Postalcode($billing_address->getPostalCode());
     $ecommercePaymentRequest->setEcom_Shipto_Postal_Street_Line1($billing_address->getAddressLine1());
 
+    // If Ingenico payment brand has been specified we provide that values to Ingenico.
+    if ($pm = $payment->getOrder()->getData('commerce_ingenico_PM')) {
+      $ecommercePaymentRequest->setPaymentMethod($pm);
+    }
+    if ($brand = $payment->getOrder()->getData('commerce_ingenico_BRAND')) {
+      $ecommercePaymentRequest->setBrand($brand);
+    }
+
     $mobile_detect = new \Mobile_Detect();
     if ($mobile_detect->isMobile()) {
       $ecommercePaymentRequest->setDevice('mobile');
@@ -116,7 +121,8 @@ class ECommerceOffsiteForm extends BasePaymentOffsiteForm {
         ]);
     }
 
-    return $this->buildRedirectForm($form, $form_state, $redirect_url, $data, PaymentOffsiteForm::REDIRECT_POST);
+    return $this->buildRedirectForm($form, $form_state, $redirect_url, $data, BasePaymentOffsiteForm::REDIRECT_POST);
+
   }
 
 }

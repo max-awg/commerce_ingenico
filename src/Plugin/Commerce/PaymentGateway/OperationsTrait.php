@@ -146,10 +146,10 @@ trait OperationsTrait {
       ]), $directLinkResponse->getParam('NCERROR'));
     }
 
-    $payment->state = 'capture_completed';
+    $payment->state = 'completed';
     $payment->setRemoteState($directLinkResponse->getParam('STATUS'));
     $payment->setAmount($amount);
-    $payment->setCapturedTime(REQUEST_TIME);
+    $payment->setCompletedTime(\Drupal::time()->getRequestTime());
     $payment->save();
   }
 
@@ -324,8 +324,8 @@ trait OperationsTrait {
    * @see https://payment-services.ingenico.com/int/en/ogone/support/guides/integration%20guides/directlink/maintenance
    */
   public function refundPayment(PaymentInterface $payment, Price $amount = NULL) {
-    if (!in_array($payment->getState()->value, ['capture_completed', 'capture_partially_refunded'])) {
-      throw new \InvalidArgumentException($this->t('Only payments in the "capture_completed" and "capture_partially_refunded" states can be refunded.'));
+    if (!in_array($payment->getState()->value, ['completed', 'partially_refunded'])) {
+      throw new \InvalidArgumentException($this->t('Only payments in the "completed" and "partially_refunded" states can be refunded.'));
     }
 
     // If not specified, refund the entire amount.
@@ -402,10 +402,10 @@ trait OperationsTrait {
     $old_refunded_amount = $payment->getRefundedAmount();
     $new_refunded_amount = $old_refunded_amount->add($amount);
     if ($new_refunded_amount->lessThan($payment->getAmount())) {
-      $payment->state = 'capture_partially_refunded';
+      $payment->state = 'partially_refunded';
     }
     else {
-      $payment->state = 'capture_refunded';
+      $payment->state = 'refunded';
     }
 
     $payment->setRemoteState($directLinkResponse->getParam('STATUS'));

@@ -1,0 +1,104 @@
+<?php
+
+use Drupal\commerce_checkout\Plugin\Commerce\CheckoutFlow\CheckoutFlowWithPanesInterface;
+use Drupal\commerce_ingenico\Plugin\Commerce\PaymentGateway\ECommerce;
+use Drupal\commerce_payment\Entity\PaymentGateway;
+use Drupal\Core\Form\FormStateInterface;
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function commerce_ingenico_form_commerce_checkout_flow_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $form_object = $form_state->getFormObject();
+
+  if ($form_object instanceof CheckoutFlowWithPanesInterface) {
+    $visible_panes = $form_object->getVisiblePanes($form['#step_id']);
+
+    $pane_id = 'payment_information';
+    if (isset($visible_panes[$pane_id])) {
+      /** @var \Drupal\commerce_payment\PaymentOption[] $payment_options */
+      $payment_options = $form[$pane_id]['#payment_options'];
+
+      $replacements = [];
+
+      foreach ($payment_options as $payment_option_id => $payment_option) {
+        $payment_gateway_id = $payment_option->getPaymentGatewayId();
+
+        /** @var \Drupal\commerce_payment\Entity\PaymentGatewayInterface $payment_gateway */
+        $payment_gateway = PaymentGateway::load($payment_gateway_id);
+        if ($payment_gateway && ($payment_gateway->getPlugin() instanceof ECommerce)) {
+          $config = $payment_gateway->getPluginConfiguration();
+          if ($config['enable_ingenico_brands']) {
+            // TODO Move?
+            $form[$pane_id]['payment_method']['#access'] = TRUE;
+            foreach ($config['ingenico_brands'] as $brand) {
+              $replacements[$payment_option_id][$payment_option_id . '|' . $brand['PM'] . '|' . $brand['BRAND']] = $brand['title'];
+            }
+          }
+        }
+      }
+
+      $new_payment_option_labels = [];
+      foreach ($form[$pane_id]['payment_method']['#options'] as $payment_option_id => $label) {
+        if (isset($replacements[$payment_option_id])) {
+          foreach ($replacements[$payment_option_id] as $new_key => $new_label) {
+            $new_payment_option_labels[$new_key] = $new_label;
+            if ($form[$pane_id]['payment_method']['#default_value'] == $payment_option_id) {
+              $form[$pane_id]['payment_method']['#default_value'] = $new_key;
+            }
+          }
+        }
+        else {
+          $new_payment_option_labels[$payment_option_id] = $label;
+        }
+      }
+      $form[$pane_id]['payment_method']['#options'] = $new_payment_option_labels;
+
+      $new_payment_options = [];
+      foreach ($payment_options as $payment_option_id => $payment_option) {
+        if (isset($replacements[$payment_option_id])) {
+          foreach ($replacements[$payment_option_id] as $new_key => $new_label) {
+            $new_payment_options[$new_key] = clone $payment_option;
+          }
+        }
+        else {
+          $new_payment_options[$payment_option_id] = $payment_option;
+        }
+      }
+      $form[$pane_id]['#payment_options'] = $new_payment_options;
+
+      if ($replacements) {
+        $form['#submit'] = array_merge(['commerce_ingenico_form_commerce_checkout_flow_submit'], $form['#submit']);
+        $form['actions']['next']['#submit'] = array_merge(['commerce_ingenico_form_commerce_checkout_flow_submit'], $form['actions']['next']['#submit']);
+      }
+    }
+  }
+}
+
+function commerce_ingenico_form_commerce_checkout_flow_submit(&$form, FormStateInterface $form_state) {
+  $form_object = $form_state->getFormObject();
+
+  if ($form_object instanceof CheckoutFlowWithPanesInterface) {
+    $visible_panes = $form_object->getVisiblePanes($form['#step_id']);
+
+    $pane_id = 'payment_information';
+    if (isset($visible_panes[$pane_id])) {
+      $values = $form_state->getValue($form[$pane_id]['#parents']);
+      $payment_option_id = $values['payment_method'];
+      /** @var \Drupal\commerce_payment\PaymentOption $payment_option */
+      $payment_option = $form[$pane_id]['#payment_options'][$payment_option_id];
+      $payment_gateway = PaymentGateway::load($payment_option->getPaymentGatewayId());
+      if ($payment_gateway && ($payment_gateway->getPlugin() instanceof ECommerce)) {
+        $config = $payment_gateway->getPluginConfiguration();
+        if ($config['enable_ingenico_brands']) {
+          $parts = explode('|', $payment_option_id);
+          if (count($parts) == 3) {
+            $order = $form_object->getOrder();
+            $order->setData('commerce_ingenico_PM', $parts[1]);
+            $order->setData('commerce_ingenico_BRAND', $parts[2]);
+          }
+        }
+      }
+    }
+  }
+}
