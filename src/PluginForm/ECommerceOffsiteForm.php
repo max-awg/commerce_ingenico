@@ -45,7 +45,12 @@ class ECommerceOffsiteForm extends BasePaymentOffsiteForm {
     // Ingenico requires the AMOUNT value to be sent in decimals.
     $ecommercePaymentRequest->setAmount((int) $payment->getAmount()->getNumber() * 100);
     $ecommercePaymentRequest->setCurrency($payment->getAmount()->getCurrencyCode());
-    $ecommercePaymentRequest->setLanguage($payment_gateway_configuration['language']);
+    $ingenico_langcode = $payment_gateway_configuration['language'];
+    $drupal_langcode = \Drupal::languageManager()->getCurrentLanguage()->getId();
+    if (isset($payment_gateway_configuration['language_from_ui_map'][$drupal_langcode])) {
+      $ingenico_langcode = $payment_gateway_configuration['language_from_ui_map'][$drupal_langcode];
+    }
+    $ecommercePaymentRequest->setLanguage($ingenico_langcode);
 
     // At the beginning PaymentProcess::buildPaneForm() did not pass the
     // selected transaction mode to the offsite payment form, but we still
