@@ -38,12 +38,20 @@ function commerce_ingenico_form_commerce_checkout_flow_alter(&$form, FormStateIn
         }
       }
 
+      /** @var \Drupal\commerce_order\Entity\OrderInterface $order */
+      $order = $form_state->getFormObject()->getOrder();
+      $pm = $order->getData('commerce_ingenico_PM');
+      $brand = $order->getData('commerce_ingenico_BRAND');
+
       $new_payment_option_labels = [];
       foreach ($form[$pane_id]['payment_method']['#options'] as $payment_option_id => $label) {
         if (isset($replacements[$payment_option_id])) {
           foreach ($replacements[$payment_option_id] as $new_key => $new_label) {
             $new_payment_option_labels[$new_key] = $new_label;
-            if ($form[$pane_id]['payment_method']['#default_value'] == $payment_option_id) {
+            if (
+              $form[$pane_id]['payment_method']['#default_value'] == $payment_option_id
+              && $new_key == "$payment_option_id|$pm|$brand"
+            ) {
               $form[$pane_id]['payment_method']['#default_value'] = $new_key;
             }
           }
