@@ -21,3 +21,10 @@ function commerce_ingenico_requirements($phase) {
 
   return $requirements;
 }
+
+/**
+ * Implements hook_install().
+ */
+function commerce_ingenico_install() {
+  module_set_weight('commerce_ingenico', 1);
+}

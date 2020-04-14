@@ -72,6 +72,31 @@ function commerce_ingenico_form_commerce_checkout_flow_alter(&$form, FormStateIn
         $form['actions']['next']['#submit'] = array_merge(['commerce_ingenico_form_commerce_checkout_flow_submit'], $form['actions']['next']['#submit']);
       }
     }
+
+    // Shows the selected Ingenico brand on order review page.
+    if (isset($form['review'][$pane_id]['summary']['payment_gateway'])) {
+      /** @var \Drupal\commerce_order\Entity\OrderInterface $order */
+      $order = $form_state->getFormObject()->getOrder();
+
+      /** @var \Drupal\commerce_payment\Entity\PaymentGatewayInterface $payment_gateway */
+      $payment_gateway = $order->get('payment_gateway')->entity;
+
+      if ($payment_gateway->getPluginId() == 'ingenico_ecommerce') {
+        $payment_gateway_config = $payment_gateway->getPluginConfiguration();
+        if (!empty($payment_gateway_config['enable_ingenico_brands'])) {
+          $pm = $order->getData('commerce_ingenico_PM');
+          $brand = $order->getData('commerce_ingenico_BRAND');
+
+          foreach ($payment_gateway_config['ingenico_brands'] as $option) {
+            if ($option['PM'] == $pm && $option['BRAND'] == $brand) {
+              $form['review'][$pane_id]['summary']['payment_gateway'] = [
+                '#markup' => $option['title'],
+              ];
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -97,6 +122,35 @@ function commerce_ingenico_form_commerce_checkout_flow_submit(&$form, FormStateI
             $order->setData('commerce_ingenico_PM', $parts[1]);
             $order->setData('commerce_ingenico_BRAND', $parts[2]);
           }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_preprocess_HOOK().
+ *
+ * Outputs the selected Ingenico brand in the order receipt mail.
+ * Requires to be executed after preprocess on commerce_payment module.
+ * So weight of the commerce_ingenico module must be bigger than
+ * commerce_payment.
+ */
+function commerce_ingenico_preprocess_commerce_order_receipt(&$variables) {
+  /** @var Drupal\commerce_order\Entity\OrderInterface $order */
+  $order = $variables['order_entity'];
+  /** @var \Drupal\commerce_payment\Entity\PaymentGatewayInterface $payment_gateway */
+  $payment_gateway = $order->get('payment_gateway')->entity;
+
+  if ($payment_gateway->getPluginId() == 'ingenico_ecommerce') {
+    $payment_gateway_config = $payment_gateway->getPluginConfiguration();
+    if (!empty($payment_gateway_config['enable_ingenico_brands'])) {
+      $pm = $order->getData('commerce_ingenico_PM');
+      $brand = $order->getData('commerce_ingenico_BRAND');
+
+      foreach ($payment_gateway_config['ingenico_brands'] as $option) {
+        if ($option['PM'] == $pm && $option['BRAND'] == $brand) {
+          $variables['payment_method'] = $option['title'];
         }
       }
     }
